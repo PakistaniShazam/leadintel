@@ -94,7 +94,7 @@ async function main() {
   console.log(`ASSERT lead_score is a number 0-100: ${typeof lead.rows[0]?.lead_score === "number" && lead.rows[0].lead_score >= 0 && lead.rows[0].lead_score <= 100 ? "PASS (" + lead.rows[0]?.lead_score + ")" : "FAIL (" + lead.rows[0]?.lead_score + ")"}`);
   console.log(`ASSERT data_confidence is a number 0-1: ${typeof lead.rows[0]?.data_confidence === "number" && lead.rows[0].data_confidence >= 0 && lead.rows[0].data_confidence <= 1 ? "PASS (" + lead.rows[0]?.data_confidence + ")" : "FAIL (" + lead.rows[0]?.data_confidence + ")"}`);
   console.log(`ASSERT campaign_relevance recorded separately from lead_score: ${campaignLead.rows[0]?.campaign_relevance !== undefined && campaignLead.rows[0]?.campaign_relevance !== lead.rows[0]?.lead_score ? "PASS" : "INCONCLUSIVE (may coincidentally match)"}`);
-  console.log(`ASSERT score_change history event recorded: ${historyEvents.rows.some((r) => r.event_type === "score_change") ? "PASS" : "FAIL"}`);
+  console.log(`ASSERT score_change history event recorded: ${historyEvents.rows.some((r: { event_type: string }) => r.event_type === "score_change") ? "PASS" : "FAIL"}`);
   console.log(`ASSERT AI classification attempted (mock provider, no API key here): ${classifications.rows.length > 0 ? "PASS (" + classifications.rows.length + " rows)" : "recorded 0 — check reasoning below"}`);
 
   await extractionWorker.close();
