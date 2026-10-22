@@ -88,7 +88,7 @@ async function main() {
   console.log("=== Campaign relevance ===");
   console.log(JSON.stringify(campaignLead.rows[0], null, 2));
   console.log("=== History event types ===");
-  console.log(historyEvents.rows.map((r: { event_type: string }) => r.event_type));
+  console.log(historyEvents.rows.map((r: { event_type: string }) => r.event_type)
 
   console.log(`\nASSERT lead exists: ${lead.rows.length === 1 ? "PASS" : "FAIL"}`);
   console.log(`ASSERT lead_score is a number 0-100: ${typeof lead.rows[0]?.lead_score === "number" && lead.rows[0].lead_score >= 0 && lead.rows[0].lead_score <= 100 ? "PASS (" + lead.rows[0]?.lead_score + ")" : "FAIL (" + lead.rows[0]?.lead_score + ")"}`);
