@@ -16,13 +16,13 @@ export async function rankSourcesForCampaign(campaignId: string): Promise<{ sour
   if (sources.rows.length === 0) return [];
 
   const scored = await Promise.all(
-    sources.rows.map(async (row) => ({
+    sources.rows.map(async (row: { source_id: string }) => ({
       sourceId: row.source_id,
       confidence: await computeSourceConfidence(row.source_id),
     }))
   );
 
-  scored.sort((a, b) => b.confidence - a.confidence);
+  scored.sort((a: { confidence: number }, b: { confidence: number }) => b.confidence - a.confidence);
 
   const results: { sourceId: string; confidence: number; priority: number }[] = [];
   for (let idx = 0; idx < scored.length; idx++) {
