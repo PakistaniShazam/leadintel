@@ -1,4 +1,4 @@
-import { Worker } from "bullmq";
+import { Job, Worker } from "bullmq";
 import { connection, type ExtractionFetchJobData, enqueueVerification } from "../queues/index.js";
 import { createConnectorForSource } from "../connectors/factory.js";
 import { ingestExtractedRecord } from "../lib/ingestion.js";
@@ -11,7 +11,7 @@ import { flagForReview } from "../lib/reviewQueue.js";
 export function startExtractionWorker(): Worker {
   return new Worker<ExtractionFetchJobData>(
     "extraction.fetch",
-    async (job) => {
+    async (job: Job<ExtractionFetchJobData>) => {
       const { organizationId, sourceId, sourceType, sourceBaseUrl, url, campaignId } = job.data;
 
       const connector = createConnectorForSource({ type: sourceType, baseUrl: sourceBaseUrl });
