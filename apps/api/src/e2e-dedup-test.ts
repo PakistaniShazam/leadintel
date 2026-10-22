@@ -88,7 +88,7 @@ async function main() {
   console.log(JSON.stringify(leadSources.rows, null, 2));
 
   console.log(`\nASSERT exactly 1 lead after 2 passes: ${leads.rows.length === 1 ? "PASS" : "FAIL (" + leads.rows.length + ")"}`);
-  console.log(`ASSERT a 'duplicate_submission_merged' event exists: ${history.rows.some((r) => r.event_type === "duplicate_submission_merged") ? "PASS" : "FAIL"}`);
+  console.log(`ASSERT a 'duplicate_submission_merged' event exists: ${history.rows.some((r: { event_type: string }) => r.event_type === "duplicate_submission_merged") ? "PASS" : "FAIL"}`);
   console.log(`ASSERT last_discovered advanced past first_discovered: ${leads.rows[0] && new Date(leads.rows[0].last_discovered) >= new Date(leads.rows[0].first_discovered) ? "PASS" : "FAIL"}`);
 
   await extractionWorker.close();
