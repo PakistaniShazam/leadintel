@@ -48,7 +48,7 @@ const ENRICH_TARGET_HTML = (port: number) => `<!DOCTYPE html><html><head>
 
 async function main() {
   let servePhase = 1;
-  const server = http.createServer((req, res) => {
+  const server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
     if (req.url === "/sitemap.xml") {
       res.writeHead(200, { "content-type": "application/xml" });
       res.end(`<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
