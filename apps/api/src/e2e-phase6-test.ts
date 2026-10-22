@@ -169,8 +169,8 @@ async function main() {
   console.log("Emails after enrichment:", JSON.stringify(emailsAfter.rows, null, 2));
   console.log("Enrichment runs recorded:", JSON.stringify(enrichmentRuns.rows, null, 2));
 
-  console.log(`\nASSERT email found and applied via enrichment: ${emailsAfter.rows.some((r) => r.email === "found-by-enrichment@fixture.test") ? "PASS" : "FAIL"}`);
-  console.log(`ASSERT enrichment run recorded with applied=true: ${enrichmentRuns.rows.some((r) => r.field === "email" && r.applied === true) ? "PASS" : "FAIL"}`);
+  console.log(`\nASSERT email found and applied via enrichment: ${emailsAfter.rows.some((r: { email: string }) => r.email === "found-by-enrichment@fixture.test") ? "PASS" : "FAIL"}`);
+console.log(`ASSERT enrichment run recorded with applied=true: ${enrichmentRuns.rows.some((r: { field: string; applied: boolean }) => r.field === "email" && r.applied === true) ? "PASS" : "FAIL"}`);
 
   console.log("\n=== Part 5: source ranking ===");
   const campaign = await pool.query(`INSERT INTO campaigns (organization_id, name, status) VALUES ($1,'Phase6 Rank Test','ACTIVE') RETURNING id`, [organizationId]);
