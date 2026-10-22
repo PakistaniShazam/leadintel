@@ -57,7 +57,7 @@ export async function reconcileLeadWithRecord(leadId: string, record: PartialLea
   // availability (feeds into Lead Score on the next rescore).
   if (record.emails && record.emails.length > 0) {
     const existing = await pool.query("SELECT email FROM lead_emails WHERE lead_id = $1", [leadId]);
-    const existingSet = new Set(existing.rows.map((r) => r.email.toLowerCase()));
+    const existingSet = new Set(existing.rows.map((r: { email: string }) => r.email.toLowerCase()));
     const newEmails = record.emails.filter((e) => !existingSet.has(e.toLowerCase()));
     for (const email of newEmails) {
       await pool.query(
