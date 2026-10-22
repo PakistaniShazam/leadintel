@@ -1,0 +1,94 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: leadintel
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./packages/db/migrations:/docker-entrypoint-initdb.d
+      - ./packages/db/seed.sql:/docker-entrypoint-initdb.d/999_seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/leadintel
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?Set a real JWT_SECRET in a .env file next to this docker-compose.yml}
+      PORT: 4000
+      NODE_ENV: production
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      # Real AI classification/strategy generation needs this. Without it,
+      # the system runs on a deterministic mock provider (safe, but
+      # placeholder answers) — see apps/api/.env.example for details.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["node", "dist/worker.js"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/leadintel
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Baked in at build time (Next.js requirement for NEXT_PUBLIC_* vars) —
+        # set this to wherever the API is actually reachable from the
+        # browser, not from inside the Docker network. In production this
+        # is your API's public URL (e.g. https://api.yourdomain.com).
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:

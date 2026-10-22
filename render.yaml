@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: leadintel-api
+    runtime: node
+    rootDir: apps/api
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RUN_WORKERS
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  - type: web
+    name: leadintel-web
+    runtime: node
+    rootDir: apps/web
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false

@@ -1,0 +1,14 @@
+{
+  "name": "@leadintel/db",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "generate": "prisma generate --schema=schema.prisma",
+    "migrate": "prisma migrate dev --schema=schema.prisma",
+    "studio": "prisma studio --schema=schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.9.1",
+    "prisma": "^7.9.1"
+  }
+}

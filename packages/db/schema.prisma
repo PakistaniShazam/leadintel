@@ -1,0 +1,601 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Auth / multi-tenant ─────────────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  memberships  Membership[]
+  campaigns    Campaign[]
+  sources      Source[]
+  leads        Lead[]
+  auditLogs    AuditLog[]
+  scoringRules ScoringRule[]
+  aiUsage      AIUsage[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+
+  memberships     Membership[]
+  feedbackEntries ClassificationFeedback[]
+}
+
+enum RoleName {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model Membership {
+  id             String       @id @default(uuid())
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  role           RoleName     @default(MEMBER)
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, organizationId])
+}
+
+// ── Taxonomy ─────────────────────────────────────────────────────────
+
+model Industry {
+  id         String       @id @default(uuid())
+  name       String       @unique
+  categories Category[]
+}
+
+model Category {
+  id            String         @id @default(uuid())
+  name          String
+  industry      Industry       @relation(fields: [industryId], references: [id])
+  industryId    String
+  subcategories Subcategory[]
+
+  @@unique([industryId, name])
+}
+
+model Subcategory {
+  id         String   @id @default(uuid())
+  name       String
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String
+
+  @@unique([categoryId, name])
+}
+
+model Country {
+  id        String  @id @default(uuid())
+  name      String  @unique
+  code      String  @unique // ISO 3166-1 alpha-2
+  phoneCode String?
+  tld       String?
+}
+
+// ── Sources ──────────────────────────────────────────────────────────
+
+enum SourceType {
+  API
+  SITEMAP
+  RSS
+  STATIC_WEB
+  BROWSER
+  USER_IMPORT
+  SEARCH_DISCOVERY
+}
+
+enum ComplianceMode {
+  OFFICIAL_API
+  PUBLIC_SITEMAP
+  PUBLIC_RSS
+  DIRECT_CRAWL_ROBOTS_RESPECTED
+  USER_PROVIDED
+}
+
+model Source {
+  id             String         @id @default(uuid())
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  type           SourceType
+  complianceMode ComplianceMode
+  baseUrl        String?
+  config         Json           @default("{}")
+  rateLimitPerMin Int           @default(30)
+  isEnabled      Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+
+  runs            SourceRun[]
+  leadSources     LeadSource[]
+  qualityMetrics  SourceQualityMetric[]
+  performanceHist SourcePerformanceHistory[]
+  campaignSources CampaignSource[]
+
+  @@index([organizationId])
+}
+
+model SourceRun {
+  id           String   @id @default(uuid())
+  source       Source   @relation(fields: [sourceId], references: [id])
+  sourceId     String
+  campaignRun  CampaignRun? @relation(fields: [campaignRunId], references: [id])
+  campaignRunId String?
+  startedAt    DateTime @default(now())
+  finishedAt   DateTime?
+  requests     Int      @default(0)
+  successes    Int      @default(0)
+  failures     Int      @default(0)
+  leadsFound   Int      @default(0)
+  errorSummary String?
+
+  @@index([sourceId])
+}
+
+model SourceQualityMetric {
+  id                String   @id @default(uuid())
+  source            Source   @relation(fields: [sourceId], references: [id])
+  sourceId          String
+  qualityScore      Int
+  dataCompleteness  Float
+  contactAvailability Float
+  industryRelevance Float
+  countryRelevance  Float
+  complianceScore   Float
+  computedAt        DateTime @default(now())
+
+  @@index([sourceId])
+}
+
+model SourcePerformanceHistory {
+  id               String   @id @default(uuid())
+  source           Source   @relation(fields: [sourceId], references: [id])
+  sourceId         String
+  periodStart      DateTime
+  periodEnd        DateTime
+  leadsDiscovered  Int
+  validLeads       Int
+  verifiedLeads    Int
+  duplicateCount   Int
+  averageScore     Float
+  aiCostUsd        Float    @default(0)
+
+  @@index([sourceId])
+}
+
+// ── Leads ────────────────────────────────────────────────────────────
+
+enum VerificationStatus {
+  VERIFIED
+  PARTIALLY_VERIFIED
+  UNVERIFIED
+  INVALID
+  NEEDS_REVIEW
+}
+
+enum LeadStatus {
+  NEW
+  REVIEWED
+  CONTACTED
+  INTERESTED
+  NOT_INTERESTED
+  CONVERTED
+  ARCHIVED
+}
+
+enum Freshness {
+  FRESH
+  AGING
+  STALE
+  VERY_STALE
+}
+
+model Lead {
+  id               String    @id @default(uuid())
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  organizationId   String
+
+  companyName      String
+  normalizedName   String
+  website          String?
+  domain           String?
+  description      String?
+
+  country          String?
+  countryCode      String?
+  region           String?
+  city             String?
+  postalCode       String?
+
+  industryId       String?
+  categoryId       String?
+  subcategoryId    String?
+
+  leadScore        Int?      // permanent, cross-campaign
+  dataConfidence   Float?    // 0-1
+  status           LeadStatus @default(NEW)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  freshness        Freshness @default(FRESH)
+
+  aiSummary        String?
+
+  firstDiscovered  DateTime  @default(now())
+  lastDiscovered   DateTime  @default(now())
+  lastVerified     DateTime?
+  lastEnriched     DateTime?
+  lastMeaningfulChange DateTime?
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  contacts         LeadContact[]
+  leadSources      LeadSource[]
+  history          LeadHistoryEvent[]
+  provenance       LeadFieldProvenance[]
+  classifications  AIClassification[]
+  verifications    VerificationResult[]
+  campaignLeads    CampaignLead[]
+  changeEvents     LeadChangeEvent[]
+  enrichmentRuns   LeadEnrichmentRun[]
+  tags             LeadTag[]
+  emails           LeadEmail[]
+
+  @@index([organizationId])
+  @@index([normalizedName])
+  @@index([domain])
+  @@index([countryCode])
+}
+
+model LeadTag {
+  id     String @id @default(uuid())
+  lead   Lead   @relation(fields: [leadId], references: [id])
+  leadId String
+  tag    String
+
+  @@unique([leadId, tag])
+}
+
+model LeadSource {
+  id         String   @id @default(uuid())
+  lead       Lead     @relation(fields: [leadId], references: [id])
+  leadId     String
+  source     Source   @relation(fields: [sourceId], references: [id])
+  sourceId   String
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  sourceUrl  String?
+
+  @@unique([leadId, sourceId])
+}
+
+model LeadContact {
+  id             String   @id @default(uuid())
+  lead           Lead     @relation(fields: [leadId], references: [id])
+  leadId         String
+  firstName      String?
+  lastName       String?
+  fullName       String?
+  jobTitle       String?
+  department     String?
+  profileUrl     String?
+  source         String?
+  confidence     Float?
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  firstDiscovered DateTime @default(now())
+  lastVerified   DateTime?
+
+  emails         ContactEmail[]
+  phones         ContactPhone[]
+
+  @@index([leadId])
+}
+
+enum EmailType {
+  GENERIC_BUSINESS
+  DEPARTMENT
+  PROFESSIONAL_INDIVIDUAL
+  UNKNOWN
+}
+
+model LeadEmail {
+  // generic/company-level emails not tied to a named contact
+  id         String    @id @default(uuid())
+  lead       Lead      @relation(fields: [leadId], references: [id])
+  leadId     String
+  email      String
+  type       EmailType @default(UNKNOWN)
+  domain     String?
+  domainStatus String?
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  verifiedAt DateTime?
+  source     String?
+  confidence Float?
+
+  @@index([leadId])
+}
+
+model ContactEmail {
+  id         String    @id @default(uuid())
+  contact    LeadContact @relation(fields: [contactId], references: [id])
+  contactId  String
+  email      String
+  type       EmailType @default(UNKNOWN)
+  domain     String?
+  domainStatus String?
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  verifiedAt DateTime?
+  source     String?
+  confidence Float?
+
+  @@index([contactId])
+}
+
+model ContactPhone {
+  id         String   @id @default(uuid())
+  contact    LeadContact @relation(fields: [contactId], references: [id])
+  contactId  String
+  phone      String
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  source     String?
+  confidence Float?
+
+  @@index([contactId])
+}
+
+// ── History / provenance / feedback ────────────────────────────────
+
+model LeadHistoryEvent {
+  id        String   @id @default(uuid())
+  lead      Lead     @relation(fields: [leadId], references: [id])
+  leadId    String
+  eventType String   // status_change | score_change | classification_change | ...
+  oldValue  Json?
+  newValue  Json?
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+}
+
+model LeadChangeEvent {
+  id          String   @id @default(uuid())
+  lead        Lead     @relation(fields: [leadId], references: [id])
+  leadId      String
+  field       String   // website | email | phone | address | company_name | services | industry
+  oldValue    String?
+  newValue    String?
+  detectedAt  DateTime @default(now())
+
+  @@index([leadId])
+}
+
+model LeadFieldProvenance {
+  id         String   @id @default(uuid())
+  lead       Lead     @relation(fields: [leadId], references: [id])
+  leadId     String
+  field      String   // e.g. "country", "industry", "email"
+  value      String
+  sourceUrl  String?
+  sourceName String?
+  confidence Float?
+  evidence   String?
+  createdAt  DateTime @default(now())
+
+  @@index([leadId, field])
+}
+
+model LeadEnrichmentRun {
+  id           String   @id @default(uuid())
+  lead         Lead     @relation(fields: [leadId], references: [id])
+  leadId       String
+  field        String
+  previousValue String?
+  newValue     String?
+  source       String?
+  method       String?
+  confidence   Float?
+  applied      Boolean  @default(false) // false if routed to review instead of auto-applied
+  createdAt    DateTime @default(now())
+
+  @@index([leadId])
+}
+
+model AIClassification {
+  id           String   @id @default(uuid())
+  lead         Lead     @relation(fields: [leadId], references: [id])
+  leadId       String
+  field        String   // industry | category | subcategory | country
+  value        String
+  confidence   Float
+  reasoning    String?
+  modelVersion String?
+  promptVersion String?
+  createdAt    DateTime @default(now())
+
+  feedback     ClassificationFeedback[]
+
+  @@index([leadId])
+}
+
+model ClassificationFeedback {
+  id            String   @id @default(uuid())
+  classification AIClassification? @relation(fields: [classificationId], references: [id])
+  classificationId String?
+  leadId        String
+  field         String
+  originalValue String
+  correctedValue String
+  reason        String?
+  user          User     @relation(fields: [userId], references: [id])
+  userId        String
+  modelVersion  String?
+  promptVersion String?
+  createdAt     DateTime @default(now())
+}
+
+model VerificationResult {
+  id          String   @id @default(uuid())
+  lead        Lead     @relation(fields: [leadId], references: [id])
+  leadId      String
+  checkType   String   // email_syntax | domain | website_http | phone_format | ...
+  result      String   // pass | fail | inconclusive
+  details     Json?
+  checkedAt   DateTime @default(now())
+
+  @@index([leadId])
+}
+
+// ── Campaigns ────────────────────────────────────────────────────────
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model Campaign {
+  id             String   @id @default(uuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  status         CampaignStatus @default(DRAFT)
+
+  includeCountries String[] @default([])
+  excludeCountries String[] @default([])
+  industryId     String?
+  categoryId     String?
+  subcategoryId  String?
+  requiredFields String[] @default([]) // e.g. ["email","phone"]
+  qualityBar     Int      @default(0)
+  targetLeads    Int      @default(0)
+
+  scheduleCron   String?  // null = manual only
+  maxRuntimeMin  Int      @default(60)
+  maxRequests    Int      @default(5000)
+  maxAiCostUsd   Float    @default(5.0)
+
+  searchStrategy Json?    // AI-generated, user-approved plan
+  strategyApprovedAt DateTime?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  runs           CampaignRun[]
+  campaignLeads  CampaignLead[]
+  campaignSources CampaignSource[]
+
+  @@index([organizationId])
+}
+
+model CampaignRun {
+  id           String   @id @default(uuid())
+  campaign     Campaign @relation(fields: [campaignId], references: [id])
+  campaignId   String
+  status       String   @default("running") // running | completed | failed | cancelled
+  startedAt    DateTime @default(now())
+  finishedAt   DateTime?
+
+  discovered   Int      @default(0)
+  newLeads     Int      @default(0)
+  duplicates   Int      @default(0)
+  invalid      Int      @default(0)
+  verified     Int      @default(0)
+  errors       Int      @default(0)
+  aiCostUsd    Float    @default(0)
+
+  sourceRuns   SourceRun[]
+
+  @@index([campaignId])
+}
+
+model CampaignLead {
+  id                String   @id @default(uuid())
+  campaign          Campaign @relation(fields: [campaignId], references: [id])
+  campaignId        String
+  lead              Lead     @relation(fields: [leadId], references: [id])
+  leadId            String
+  campaignRelevance Float?   // 0-100, campaign-specific, never overwrites lead.leadScore
+  signals           Json?
+  createdAt         DateTime @default(now())
+
+  @@unique([campaignId, leadId])
+  @@index([campaignId])
+  @@index([leadId])
+}
+
+// ── Scoring config / cost tracking / audit ─────────────────────────
+
+model CampaignSource {
+  id           String   @id @default(uuid())
+  campaign     Campaign @relation(fields: [campaignId], references: [id])
+  campaignId   String
+  source       Source   @relation(fields: [sourceId], references: [id])
+  sourceId     String
+  approvedAt   DateTime @default(now())
+  priority     Int      @default(0)
+
+  @@unique([campaignId, sourceId])
+  @@index([campaignId])
+  @@index([sourceId])
+}
+
+model ScoringRule {
+  id             String   @id @default(uuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  weights        Json     // { completeness: 0.2, contactAvailability: 0.2, ... }
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+}
+
+model AIUsage {
+  id           String   @id @default(uuid())
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  organizationId String?
+  operation    String   // extract | classify | relevance | strategy | ...
+  tier         Int      // 1-4, per cost-optimization design
+  provider     String   // anthropic | openai
+  model        String
+  tokensIn     Int      @default(0)
+  tokensOut    Int      @default(0)
+  estimatedCostUsd Float @default(0)
+  campaignId   String?
+  sourceId     String?
+  leadId       String?
+  createdAt    DateTime @default(now())
+
+  @@index([campaignId])
+  @@index([createdAt])
+  @@index([organizationId])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  actorUserId    String?
+  action         String
+  entityType     String
+  entityId       String
+  details        Json?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+}
