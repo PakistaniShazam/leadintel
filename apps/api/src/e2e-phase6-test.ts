@@ -120,8 +120,8 @@ async function main() {
 
   console.log(`\nASSERT still exactly 1 lead (same domain -> auto-merge held): ${leadAfterV2.rows.length === 1 ? "PASS" : "FAIL (" + leadAfterV2.rows.length + ")"}`);
   console.log(`ASSERT company_name in DB was NOT silently overwritten: ${leadAfterV2.rows[0]?.company_name === "Phase6 Test Biz" ? "PASS" : "FAIL (" + leadAfterV2.rows[0]?.company_name + ")"}`);
-  console.log(`ASSERT a company_name change_event was recorded: ${changeEvents.rows.some((r) => r.field === "company_name" && r.new_value === "Phase6 Test Biz Renamed") ? "PASS" : "FAIL"}`);
-  console.log(`ASSERT a company_name_changed review flag was raised: ${reviewFlagsAfterRename.rows.some((r) => r.reason === "company_name_changed") ? "PASS" : "FAIL"}`);
+  console.log(`ASSERT a company_name change_event was recorded: ${changeEvents.rows.some((r: { field: string; new_value: string }) => r.field === "company_name" && r.new_value === "Phase6 Test Biz Renamed") ? "PASS" : "FAIL"}`);
+  console.log(`ASSERT a company_name_changed review flag was raised: ${reviewFlagsAfterRename.rows.some((r: { reason: string }) => r.reason === "company_name_changed") ? "PASS" : "FAIL"}`);
 
   console.log("\n=== Part 2b: re-discovery, IDENTICAL name but COMPLETELY DIFFERENT domain (ambiguous dedup, not auto-merged) ===");
   servePhase = 3;
@@ -138,7 +138,7 @@ async function main() {
   console.log("Ambiguous-duplicate flags:", JSON.stringify(ambiguousFlags.rows, null, 2));
 
   console.log(`\nASSERT a SECOND lead was created (domain didn't match well enough to auto-merge on name alone): ${leadsAfterV3.rows.length === 2 ? "PASS" : "FAIL (" + leadsAfterV3.rows.length + ")"}`);
-  console.log(`ASSERT it was flagged HIGH priority as an ambiguous duplicate, not silently merged or silently duplicated: ${ambiguousFlags.rows.some((r) => r.priority === "HIGH") ? "PASS" : "FAIL"}`);
+  console.log(`ASSERT it was flagged HIGH priority as an ambiguous duplicate, not silently merged or silently duplicated: ${ambiguousFlags.rows.some((r: { priority: string }) => r.priority === "HIGH") ? "PASS" : "FAIL"}`);
 
   console.log("\n=== Part 3: review queue resolve ===");
   const flagId = ambiguousFlags.rows.length > 0
